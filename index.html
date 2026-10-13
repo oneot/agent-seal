@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>내 채팅 페이지 만들기</title>
+  <style>
+    body { font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #0b2a4a; line-height: 1.6; }
+    input, textarea, button { width: 100%; padding: 10px 12px; margin: 6px 0 14px; font-size: 15px; border: 1px solid #9bb8d9; border-radius: 10px; }
+    button { background: #0060df; color: #fff; border: 0; cursor: pointer; }
+    textarea { height: 260px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+    small { color: #44627f; }
+  </style>
+</head>
+<body>
+  <h1>내 채팅 페이지 만들기</h1>
+  <ol>
+    <li>Copilot Studio 에이전트의 <b>안전 및 액세스 → 웹 채널 보안</b>에서 <b>암호 1</b>을 복사합니다.</li>
+    <li>암호 1과 내 <b>GitHub 아이디</b>(예: <code>oneot</code>)를 넣고 <b>만들기</b>를 누릅니다.</li>
+    <li>나온 코드를 <b>전체 복사</b>해서 저장소의 <code>index.html</code>에 붙여 넣습니다.</li>
+  </ol>
+  <p><small>암호 1은 이 브라우저 안에서 암호화되고, 원문은 어디로도 전송되지 않으며 코드에도 들어가지 않습니다.</small></p>
+  <label>암호 1</label>
+  <input id="secret" type="password" autocomplete="off" placeholder="웹 채널 보안의 암호 1">
+  <label>GitHub 아이디 <small>(내 페이지 주소: https://아이디.github.io)</small></label>
+  <input id="gh" autocomplete="off" placeholder="예: oneot">
+  <button id="go" type="button">만들기</button>
+  <label>index.html 전체 코드</label>
+  <textarea id="out" readonly></textarea>
+  <button id="copy" type="button">전체 복사</button>
+
+  <script>
+    const PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApYMsjV56YBTGs1+qEpkKCTEZIow+jWb09kIuJ/ULAUrp74OmdVkfORgmvf06rm1SmXvAxbDPpELK8PI+c4QqgQXEQH0O3+WQIlw3LLg8+zAnQfS+KM2k3Q0eg5mHVrtjZZQNV2fgVLqtehrzxu3LpfyGa16wUU+MTLHcB6MRsTOSs5W+jNzEovkaUv28DEuxSrICGNfAWK3JTzfJqp03rZZODXYxGeUf3bKKz6z1RP4TKXw36gMjEfFiHzucXwv8lkOuIwEVYxN3HAN3uhdLlDPehfy/lvvGWxc7RX1xpSFUxHcxCev778CMVV240fMbQFbGOI2ttO8Ix2lJVlDOXQIDAQAB";
+    const BROKER_URL = "https://dl-broker-juwon-4jt3z.azurewebsites.net/api/directlineToken";
+    const TEMPLATE = "\u003c!DOCTYPE html>\n\u003chtml lang=\"ko\">\n\u003cmeta charset=\"UTF-8\">\n\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\u003ctitle>AI Creative Agent\u003c/title>\n\u003cscript src=\"https://cdn.botframework.com/botframework-webchat/4.18.0/webchat.js\">\u003c/script>\n\n\u003cdiv id=\"webchat\" style=\"height: 600px\">\u003c/div>\n\n\u003cscript>\n  const BROKER_URL = \"__BROKER_URL__\";\n  const SEALED = \"__SEALED__\";\n\n  fetch(BROKER_URL, { method: \"POST\", body: JSON.stringify({ sealed: SEALED }) })\n    .then(r => r.json())\n    .then(({ token, error }) => {\n      if (!token) throw new Error(error);\n      const directLine = WebChat.createDirectLine({ token });\n      directLine.postActivity({ type: \"event\", name: \"startConversation\", from: { id: \"user\" } }).subscribe(); // 첫 인사말 요청\n      WebChat.renderWebChat({ directLine, locale: \"ko-KR\" }, document.getElementById(\"webchat\"));\n    })\n    .catch(e => document.getElementById(\"webchat\").textContent = \"연결하지 못했습니다: \" + e.message);\n\u003c/script>\n";
+    const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    async function seal(secret, origin) {
+      const publicKey = await crypto.subtle.importKey(
+        "spki", Uint8Array.from(atob(PUBLIC_KEY), c => c.charCodeAt(0)),
+        { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+      const aesKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const plain = new TextEncoder().encode(JSON.stringify({ s: secret, o: origin }));
+      const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, plain);
+      const wrapped = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, await crypto.subtle.exportKey("raw", aesKey));
+      const all = new Uint8Array(256 + 12 + cipher.byteLength);
+      all.set(new Uint8Array(wrapped), 0); all.set(iv, 256); all.set(new Uint8Array(cipher), 268);
+      return b64(all);
+    }
+
+    document.getElementById("go").onclick = async () => {
+      const secret = document.getElementById("secret").value.trim();
+      const id = document.getElementById("gh").value.trim().toLowerCase();
+      if (!secret) return alert("암호 1을 붙여 넣으세요.");
+      if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(id)) return alert("GitHub 아이디만 입력하세요. 예: oneot");
+      const sealed = await seal(secret, `https://${id}.github.io`);
+      document.getElementById("out").value = TEMPLATE
+        .replace("__BROKER_URL__", () => BROKER_URL)
+        .replace("__SEALED__", () => sealed);
+    };
+    document.getElementById("copy").onclick = () => navigator.clipboard.writeText(document.getElementById("out").value);
+  </script>
+</body>
+</html>
