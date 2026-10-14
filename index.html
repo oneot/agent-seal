@@ -3,45 +3,199 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex">
   <title>내 채팅 페이지 만들기</title>
   <style>
-    body { font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #0b2a4a; line-height: 1.6; }
-    input, textarea, button { width: 100%; padding: 10px 12px; margin: 6px 0 14px; font-size: 15px; border: 1px solid #9bb8d9; border-radius: 10px; }
-    button { background: #0060df; color: #fff; border: 0; cursor: pointer; }
-    textarea { height: 260px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
-    small { color: #44627f; }
+    @property --rim { syntax: "<angle>"; inherits: false; initial-value: 150deg; }
+
+    :root {
+      --ink: #1d1d1f;
+      --hint: #a1a1a6;
+      --error: #e5484d;
+      --line: rgba(15, 23, 42, .07);
+      --spring: cubic-bezier(.2, 1.3, .3, 1);
+      --ease: cubic-bezier(.4, 0, .2, 1);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: grid; place-items: center; overflow: hidden;
+      background: #fff; color: var(--ink);
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; color: inherit; }
+
+    /* 유리에 비칠 아주 옅은 빛 */
+    .light { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+    .light i { position: absolute; left: 50%; top: 50%; width: 1000px; height: 1000px; margin: -500px 0 0 -500px; border-radius: 50%; }
+    .light i:first-child { background: radial-gradient(closest-side, rgba(222, 228, 236, .2), rgba(222, 228, 236, 0)); transform: translate(-24%, -10%); animation: drift-a 22s ease-in-out infinite alternate; }
+    .light i:last-child { background: radial-gradient(closest-side, rgba(230, 230, 236, .16), rgba(230, 230, 236, 0)); transform: translate(24%, 12%); animation: drift-b 28s ease-in-out infinite alternate; }
+    @keyframes drift-a { to { transform: translate(-6%, 8%) scale(1.08); } }
+    @keyframes drift-b { to { transform: translate(8%, -8%) scale(.94); } }
+
+    /* 대화창: 리퀴드 글래스 */
+    .glass {
+      position: relative; z-index: 1; overflow: hidden;
+      width: min(680px, calc(100vw - 32px));
+      border-radius: 32px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .52));
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      backdrop-filter: blur(24px) saturate(140%);
+      box-shadow:
+        0 0 0 1px var(--line),
+        0 1px 2px rgba(15, 23, 42, .04),
+        0 14px 34px -12px rgba(15, 23, 42, .12),
+        0 40px 90px -30px rgba(15, 23, 42, .16),
+        inset 0 1px 1px #fff,
+        inset 0 -10px 24px -16px rgba(15, 23, 42, .08);
+      transition: box-shadow .5s var(--ease), transform .6s var(--spring);
+      animation: appear 1.1s var(--spring) backwards;
+    }
+    .glass:focus-within {
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, .09),
+        0 2px 4px rgba(15, 23, 42, .05),
+        0 18px 40px -12px rgba(15, 23, 42, .16),
+        0 48px 100px -30px rgba(15, 23, 42, .2),
+        inset 0 1px 1px #fff,
+        inset 0 -10px 24px -16px rgba(15, 23, 42, .08);
+    }
+    .glass::before {
+      content: ""; position: absolute; inset: 0; padding: 1.2px; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(var(--rim), #fff, rgba(255, 255, 255, .2) 30%, rgba(15, 23, 42, .1) 50%, rgba(255, 255, 255, .2) 70%, #fff);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: rim 14s linear infinite;
+    }
+    .glass::after {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: radial-gradient(240px circle at var(--x, 50%) var(--y, 0%), rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%);
+      opacity: 0; transition: opacity .6s var(--ease);
+    }
+    .glass:hover::after { opacity: 1; }
+    @keyframes rim { to { --rim: 510deg; } }
+    @keyframes appear { from { opacity: 0; transform: scale(.92); filter: blur(12px); } }
+
+    /* 입력 */
+    .ask { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 10px 0 26px; }
+    .field { position: relative; flex: 1; min-width: 0; height: 100%; }
+    .field input {
+      width: 100%; height: 100%; padding: 0; border: 0; outline: 0; background: transparent;
+      font: inherit; font-size: 17px; letter-spacing: -.01em; color: var(--ink); caret-color: var(--ink);
+    }
+    .field input::-ms-reveal { display: none; }
+    .ph {
+      position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      font-size: 17px; letter-spacing: -.01em; color: var(--hint);
+      pointer-events: none; transition: opacity .15s;
+    }
+    .ph.error { color: var(--error); }
+    .field.filled .ph { opacity: 0; }
+
+    /* 유리 버튼 */
+    .round, .chip {
+      flex: none; display: inline-flex; align-items: center; justify-content: center; border: 0; cursor: pointer;
+      background: radial-gradient(120% 120% at 30% 18%, #fff 0%, #f6f7f9 55%, #e9ebef 100%);
+      box-shadow: 0 0 0 1px var(--line), 0 3px 8px -4px rgba(15, 23, 42, .2), inset 0 1px 1px #fff, inset 0 -2px 4px rgba(15, 23, 42, .06);
+      transition: transform .5s var(--spring), opacity .3s var(--ease);
+    }
+    .round { width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+    .round svg { width: 18px; height: 18px; }
+    .round:disabled { opacity: .4; cursor: default; }
+    .round:not(:disabled):hover, .chip:hover { transform: scale(1.06); }
+    .round:not(:disabled):active, .chip:active { transform: scale(.9); transition-duration: .15s; }
+    .round:focus-visible, .chip:focus-visible { outline: 2px solid rgba(15, 23, 42, .16); outline-offset: 3px; }
+
+    /* 결과 */
+    .result { position: relative; z-index: 1; display: none; flex-direction: column; gap: 10px; padding: 12px; max-height: min(640px, calc(100vh - 48px)); }
+    .glass.done { border-radius: 28px; }
+    .glass.done .ask { display: none; }
+    .glass.done .result { display: flex; }
+    .bar { display: flex; align-items: center; gap: 8px; padding: 2px 2px 0 12px; }
+    .name { flex: 1; font: 13px var(--mono); color: #86868b; }
+    .chip { gap: 6px; height: 36px; padding: 0 16px 0 13px; border-radius: 999px; font-size: 14px; font-weight: 500; }
+    .chip svg { width: 16px; height: 16px; }
+    .chip .check, .chip.ok .copy { display: none; }
+    .chip.ok .check { display: block; }
+    .round.small { width: 36px; height: 36px; }
+    .round.small svg { width: 16px; height: 16px; }
+    pre {
+      flex: 1; min-height: 0; margin: 0; padding: 18px 20px; overflow: auto; outline: 0;
+      border-radius: 20px; background: rgba(15, 23, 42, .025);
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .045), inset 0 1px 3px rgba(15, 23, 42, .05);
+      font: 12.5px/1.7 var(--mono); color: #3a3a3c;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+    @media (max-width: 480px) {
+      .ask { height: 56px; padding-left: 20px; }
+      .field input { font-size: 16px; }
+      .ph { font-size: 15px; }
+      .round { width: 40px; height: 40px; }
+      pre { padding: 14px 16px; font-size: 11.5px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body>
-  <h1>내 채팅 페이지 만들기</h1>
-  <ol>
-    <li>Copilot Studio 에이전트의 <b>안전 및 액세스 → 웹 채널 보안</b>에서 <b>암호 1</b>을 복사합니다.</li>
-    <li>암호 1과 내 <b>GitHub 아이디</b>(예: <code>oneot</code>)를 넣고 <b>만들기</b>를 누릅니다.</li>
-    <li>나온 코드를 <b>전체 복사</b>해서 저장소의 <code>index.html</code>에 붙여 넣습니다.</li>
-  </ol>
-  <p><small>암호 1은 이 브라우저 안에서 암호화되고, 원문은 어디로도 전송되지 않으며 코드에도 들어가지 않습니다.</small></p>
-  <label>암호 1</label>
-  <input id="secret" type="password" autocomplete="off" placeholder="웹 채널 보안의 암호 1">
-  <label>GitHub 아이디 <small>(내 페이지 주소: https://아이디.github.io)</small></label>
-  <input id="gh" autocomplete="off" placeholder="예: oneot">
-  <button id="go" type="button">만들기</button>
-  <label>index.html 전체 코드</label>
-  <textarea id="out" readonly></textarea>
-  <button id="copy" type="button">전체 복사</button>
+  <div class="light" aria-hidden="true"><i></i><i></i></div>
+
+  <main class="glass" id="box">
+    <div class="ask">
+      <div class="field" id="field">
+        <input id="input" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus aria-label="'웹 채널 보안의 암호'를 입력하세요">
+        <span class="ph" aria-hidden="true">'웹 채널 보안의 암호'를 입력하세요</span>
+      </div>
+      <button class="round" id="send" type="button" aria-label="다음" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>
+      </button>
+    </div>
+    <div class="result">
+      <div class="bar">
+        <span class="name">index.html</span>
+        <button class="chip" id="copy" type="button">
+          <svg class="copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>
+          <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 9.5 17 19 7.5"/></svg>
+          <span>복사</span>
+        </button>
+        <button class="round small" id="again" type="button" aria-label="처음부터 다시">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5M4.5 4.5v4h4"/></svg>
+        </button>
+      </div>
+      <pre id="code" tabindex="0" aria-label="index.html 코드"></pre>
+    </div>
+  </main>
+  <p class="sr" id="live" aria-live="polite"></p>
 
   <script>
     const PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApYMsjV56YBTGs1+qEpkKCTEZIow+jWb09kIuJ/ULAUrp74OmdVkfORgmvf06rm1SmXvAxbDPpELK8PI+c4QqgQXEQH0O3+WQIlw3LLg8+zAnQfS+KM2k3Q0eg5mHVrtjZZQNV2fgVLqtehrzxu3LpfyGa16wUU+MTLHcB6MRsTOSs5W+jNzEovkaUv28DEuxSrICGNfAWK3JTzfJqp03rZZODXYxGeUf3bKKz6z1RP4TKXw36gMjEfFiHzucXwv8lkOuIwEVYxN3HAN3uhdLlDPehfy/lvvGWxc7RX1xpSFUxHcxCev778CMVV240fMbQFbGOI2ttO8Ix2lJVlDOXQIDAQAB";
     const BROKER_URL = "https://dl-broker-juwon-4jt3z.azurewebsites.net/api/directlineToken";
     const TEMPLATE = "\u003c!DOCTYPE html>\n\u003chtml lang=\"ko\">\n\u003cmeta charset=\"UTF-8\">\n\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\u003ctitle>AI Creative Agent\u003c/title>\n\u003cscript src=\"https://cdn.botframework.com/botframework-webchat/4.18.0/webchat.js\">\u003c/script>\n\n\u003cdiv id=\"webchat\" style=\"height: 600px\">\u003c/div>\n\n\u003cscript>\n  const BROKER_URL = \"__BROKER_URL__\";\n  const SEALED = \"__SEALED__\";\n\n  fetch(BROKER_URL, { method: \"POST\", body: JSON.stringify({ sealed: SEALED }) })\n    .then(r => r.json())\n    .then(({ token, error }) => {\n      if (!token) throw new Error(error);\n      const directLine = WebChat.createDirectLine({ token });\n      directLine.postActivity({ type: \"event\", name: \"startConversation\", from: { id: \"user\" } }).subscribe(); // 첫 인사말 요청\n      WebChat.renderWebChat({ directLine, locale: \"ko-KR\" }, document.getElementById(\"webchat\"));\n    })\n    .catch(e => document.getElementById(\"webchat\").textContent = \"연결하지 못했습니다: \" + e.message);\n\u003c/script>\n";
-    const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-    async function seal(secret, origin) {
+    const HINTS = ["'웹 채널 보안의 암호'를 입력하세요", "GitHub 아이디를 입력하세요"];
+    const $ = id => document.getElementById(id);
+    const box = $("box"), field = $("field"), input = $("input"), send = $("send"), code = $("code"), copy = $("copy"), live = $("live");
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const play = (el, frames, options) => (calm ? null : el.animate(frames, options));
+    let step = 0, secret = null, busy = false, hintTimer = 0;
+
+    // 강사 공개키로 암호를 봉인합니다. 원문은 이 브라우저 밖으로 나가지 않습니다.
+    const b64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    async function seal(value, origin) {
       const publicKey = await crypto.subtle.importKey(
         "spki", Uint8Array.from(atob(PUBLIC_KEY), c => c.charCodeAt(0)),
         { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
       const aesKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
       const iv = crypto.getRandomValues(new Uint8Array(12));
-      const plain = new TextEncoder().encode(JSON.stringify({ s: secret, o: origin }));
+      const plain = new TextEncoder().encode(JSON.stringify({ s: value, o: origin }));
       const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, plain);
       const wrapped = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, await crypto.subtle.exportKey("raw", aesKey));
       const all = new Uint8Array(256 + 12 + cipher.byteLength);
@@ -49,17 +203,149 @@
       return b64(all);
     }
 
-    document.getElementById("go").onclick = async () => {
-      const secret = document.getElementById("secret").value.trim();
-      const id = document.getElementById("gh").value.trim().toLowerCase();
-      if (!secret) return alert("암호 1을 붙여 넣으세요.");
-      if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(id)) return alert("GitHub 아이디만 입력하세요. 예: oneot");
-      const sealed = await seal(secret, `https://${id}.github.io`);
-      document.getElementById("out").value = TEMPLATE
-        .replace("__BROKER_URL__", () => BROKER_URL)
-        .replace("__SEALED__", () => sealed);
-    };
-    document.getElementById("copy").onclick = () => navigator.clipboard.writeText(document.getElementById("out").value);
+    // 'oneot', '@oneot', 'github.com/oneot', 'oneot.github.io' 모두 받아 줍니다.
+    function githubId(value) {
+      let id = value.trim().toLowerCase().replace(/^@/, "");
+      const m = id.match(/github\.com\/([a-z0-9-]+)/) || id.match(/^(?:https?:\/\/)?([a-z0-9-]+)\.github\.io/);
+      if (m) id = m[1];
+      return /^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(id) ? id : null;
+    }
+
+    // quiet: 방금 입력한 글자가 사라진 자리라 이전 안내는 바로 지웁니다.
+    function hint(text, isError = false, quiet = false) {
+      const old = [...field.querySelectorAll(".ph")].pop();
+      const next = Object.assign(document.createElement("span"), { className: "ph" + (isError ? " error" : ""), textContent: text });
+      next.setAttribute("aria-hidden", "true");
+      field.append(next);
+      input.setAttribute("aria-label", text);
+      live.textContent = text;
+      if (old && quiet) old.remove();
+      const out = old && !quiet && play(old, [
+        { opacity: 1, transform: "translateY(-50%)", filter: "blur(0)" },
+        { opacity: 0, transform: "translateY(-120%)", filter: "blur(6px)" }
+      ], { duration: 320, easing: "cubic-bezier(.4, 0, 1, 1)", fill: "forwards" });
+      if (out) out.finished.then(() => old.remove()); else if (old && old.isConnected) old.remove();
+      play(next, [
+        { opacity: 0, transform: "translateY(20%)", filter: "blur(6px)" },
+        { opacity: 1, transform: "translateY(-50%)", filter: "blur(0)" }
+      ], { duration: 620, delay: 90, easing: "cubic-bezier(.2, 1.25, .3, 1)", fill: "backwards" });
+    }
+
+    function clearTyped() {
+      const done = anim => { input.value = ""; field.classList.remove("filled"); send.disabled = true; if (anim) anim.cancel(); };
+      const anim = input.value && play(input, [
+        { opacity: 1, transform: "none", filter: "blur(0)" },
+        { opacity: 0, transform: "translateY(-12px)", filter: "blur(5px)" }
+      ], { duration: 260, easing: "ease-in", fill: "forwards" });
+      return anim ? anim.finished.then(() => done(anim)) : Promise.resolve(done());
+    }
+
+    const jelly = () => play(box, [
+      { transform: "scale(1)" }, { transform: "scale(1.02, .95)" }, { transform: "scale(.994, 1.014)" }, { transform: "scale(1)" }
+    ], { duration: 600, easing: "ease-out", composite: "add" });
+
+    const shake = () => play(box, [
+      { transform: "translateX(0)" }, { transform: "translateX(-10px)" }, { transform: "translateX(8px)" },
+      { transform: "translateX(-5px)" }, { transform: "translateX(3px)" }, { transform: "translateX(0)" }
+    ], { duration: 480, easing: "ease-out", composite: "add" });
+
+    // 대화창이 물방울처럼 늘어나고 줄어듭니다.
+    function morph(change) {
+      const before = box.getBoundingClientRect().height, beforeRadius = getComputedStyle(box).borderRadius;
+      change();
+      const after = box.getBoundingClientRect().height, afterRadius = getComputedStyle(box).borderRadius;
+      play(box, [
+        { height: before + "px", borderRadius: beforeRadius },
+        { height: after + "px", borderRadius: afterRadius }
+      ], { duration: 780, easing: "cubic-bezier(.2, 1.12, .3, 1)" });
+    }
+
+    function fail(message) {
+      shake();
+      input.value = ""; field.classList.remove("filled"); send.disabled = true;
+      hint(message, true, true);
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => hint(HINTS[step]), 2600);
+    }
+
+    function showCode(html) {
+      code.textContent = html;
+      morph(() => box.classList.add("done"));
+      [...box.querySelectorAll(".bar > *"), code].forEach((el, i) => play(el, [
+        { opacity: 0, transform: "translateY(10px)", filter: "blur(6px)" },
+        { opacity: 1, transform: "none", filter: "blur(0)" }
+      ], { duration: 640, delay: 160 + i * 90, easing: "cubic-bezier(.2, 1, .3, 1)", fill: "backwards" }));
+      copy.focus({ preventScroll: true });
+      live.textContent = "index.html 코드가 만들어졌습니다. 복사 버튼을 누르세요.";
+    }
+
+    function restart(message, isError = false) {
+      clearTimeout(hintTimer);
+      step = 0; secret = null;
+      input.type = "password"; input.value = ""; field.classList.remove("filled"); send.disabled = true;
+      if (box.classList.contains("done")) morph(() => { box.classList.remove("done"); code.textContent = ""; });
+      hint(message || HINTS[0], isError);
+      if (isError) hintTimer = setTimeout(() => hint(HINTS[0]), 3200);
+      input.focus();
+    }
+
+    async function submit() {
+      const value = input.value.trim();
+      if (busy || !value) return;
+      busy = true;
+      try {
+        if (step === 0) {
+          if (value.length < 20 || /\s/.test(value)) return fail("암호를 그대로 붙여 넣으세요");
+          secret = value;
+          jelly(); await clearTyped();
+          input.type = "text"; step = 1;
+          hint(HINTS[1], false, true);
+        } else {
+          const id = githubId(value);
+          if (!id) return fail("GitHub 아이디만 입력하세요 (예: oneot)");
+          jelly(); await clearTyped();
+          const sealed = await seal(secret, `https://${id}.github.io`);
+          secret = null;
+          showCode(TEMPLATE.replace("__BROKER_URL__", () => BROKER_URL).replace("__SEALED__", () => sealed));
+        }
+      } catch (err) {
+        console.error(err);
+        restart("만들지 못했어요. 새로고침 후 다시 해 보세요", true);
+      } finally {
+        busy = false;
+        if (!box.classList.contains("done")) input.focus();
+      }
+    }
+
+    input.addEventListener("input", () => {
+      field.classList.toggle("filled", input.value.length > 0);
+      send.disabled = !input.value.trim();
+    });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); submit(); }
+    });
+    send.addEventListener("click", submit);
+    $("again").addEventListener("click", () => restart());
+    box.addEventListener("click", e => { if (!box.classList.contains("done") && !e.target.closest("button")) input.focus(); });
+    box.addEventListener("pointermove", e => {
+      const r = box.getBoundingClientRect();
+      box.style.setProperty("--x", e.clientX - r.left + "px");
+      box.style.setProperty("--y", e.clientY - r.top + "px");
+    });
+
+    copy.addEventListener("click", async () => {
+      const text = code.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const t = Object.assign(document.createElement("textarea"), { value: text });
+        t.style.cssText = "position:fixed;opacity:0";
+        document.body.append(t); t.select(); document.execCommand("copy"); t.remove();
+      }
+      copy.classList.add("ok"); copy.lastElementChild.textContent = "복사됨";
+      jelly();
+      setTimeout(() => { copy.classList.remove("ok"); copy.lastElementChild.textContent = "복사"; }, 1800);
+    });
   </script>
 </body>
 </html>
