@@ -54,7 +54,7 @@ GitHub Pages의 기존 `main` 브랜치 루트 정적 배포 방식을 유지합
 
 ## 로컬 개발과 검증
 
-유지보수 도구에는 Node.js 22 이상이 필요하며, CI는 Node.js 24를 사용합니다. 사이트 이용자는 Node.js가 필요 없습니다.
+유지보수 도구에는 Node.js 22 이상이 필요하며, CI는 Ubuntu 24.04와 Node.js 24를 사용합니다. 사이트 이용자는 Node.js가 필요 없습니다.
 
 ```sh
 npm ci --ignore-scripts
